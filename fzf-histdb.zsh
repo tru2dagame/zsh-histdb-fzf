@@ -242,7 +242,7 @@ histdb-fzf-widget() {
         switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${fg[blue]}F4: everywhere${reset_color}"
         ;;
     esac
-		mode=$(((($mode + 1) % $#histdb_fzf_modes)))
+		mode=$((($mode % $#histdb_fzf_modes) + 1))
     histdb-fzf-log "mode changed to ${histdb_fzf_modes[$mode]} ($mode)"
 
     # log the FZF arguments
