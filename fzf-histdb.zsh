@@ -53,7 +53,7 @@ histdb-fzf-query(){
   local -a opts
 
   zparseopts -E -D -a opts \
-             s d t a
+             s d t
 
   local where=""
   local everywhere=0
@@ -61,7 +61,7 @@ histdb-fzf-query(){
 
   local cols="history.id as id, commands.argv as argv, start_time as max_start, exit_status"
 	local timecol="strftime( '${date_format} %H:%M', max_start, 'unixepoch', 'localtime') as time"
-	local groupby=""
+	local groupby="group by cmd"
 
   for opt ($opts); do
       case $opt in
@@ -73,10 +73,6 @@ histdb-fzf-query(){
               ;;
           -t)
               everywhere=1
-              ;;
-          -a)
-							histdb-fzf-log "Grouping disabled"
-				      groupby=""
               ;;
       esac
   done
@@ -100,11 +96,10 @@ histdb-fzf-query(){
         left join
 				  places on history.place_id = places.id
 				${where:+where ${where}}
-				${groupby}
 				order
 				  by max_start desc
 			)
-      group by cmd
+      ${groupby}
       order by max_start desc
 "
 
@@ -195,7 +190,7 @@ histdb-get-command(){
 }
 
 histdb-fzf-widget() {
-  local selected num mode exitkey typ cmd_opts cmd_opts_extra
+  local selected num mode exitkey typ cmd_opts
   ORIG_FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS
   query=${BUFFER}
   origquery=${BUFFER}
@@ -213,7 +208,6 @@ histdb-fzf-widget() {
   fi
   histdb-fzf-log "Start mode ${histdb_fzf_modes[$mode]} ($mode)"
   exitkey='ctrl-r'
-	cmd_opts_extra=''
   setopt localoptions noglobsubst noposixbuiltins pipefail 2> /dev/null
   # Here it is getting a bit tricky, fzf does not support dynamic updating so we have to close and reopen fzf when changing the focus (session, dir, global)
   # so we check the exitkey and decide what to do
@@ -221,39 +215,31 @@ histdb-fzf-widget() {
     histdb-fzf-log "------------------- TURN -------------------"
     histdb-fzf-log "Exitkey $exitkey"
     # the f keys are a shortcut to select a certain mode
-		if [[ $exitkey == "f5" ]]; then
-			mode=$((($mode - 1) % $#histdb_fzf_modes))
-			if [[ $cmd_opts_extra == '' ]]; then
-				cmd_opts_extra='-a'
-			else
-				cmd_opts_extra=''
-			fi
 		elif [[ $exitkey =~ "f." ]]; then
       mode=${exitkey[$(($MBEGIN+1)),$MEND]}
       histdb-fzf-log "mode changed to ${histdb_fzf_modes[$mode]} ($mode)"
     fi
-    histdb-fzf-log "Extra Opts $cmd_opts_extra"
     # based on the mode, we use the options for histdb options
     case "$histdb_fzf_modes[$mode]" in
       'session')
         cmd_opts="-s"
         typ="Session local history ${fg[blue]}${HISTDB_SESSION}${reset_color}"
-        switchhints="${fg[blue]}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
+        switchhints="${fg[blue]}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color}"
         ;;
       'loc')
         cmd_opts="-d"
         typ="Directory local history ${fg[blue]}$(pwd)${reset_color}"
-        switchhints="${bold_color}F1: session${reset_color} ${fg[blue]}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
+        switchhints="${bold_color}F1: session${reset_color} ${fg[blue]}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color}"
         ;;
       'global')
         cmd_opts=""
         typ="global history ${fg[blue]}$(hostname)${reset_color}"
-        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${fg[blue]}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
+        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${fg[blue]}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color}"
         ;;
       'everywhere')
         cmd_opts="-t"
         typ='everywhere'
-        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${fg[blue]}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
+        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${fg[blue]}F4: everywhere${reset_color}"
         ;;
     esac
 		mode=$(((($mode + 1) % $#histdb_fzf_modes)))
@@ -264,7 +250,7 @@ histdb-fzf-widget() {
       --ansi
       --header='${typ}${NL}${switchhints}${NL}―――――――――――――――――――――――――' --delimiter=' '
       -n2.. --with-nth=2..
-      --tiebreak=index --expect='esc,ctrl-r,f1,f2,f3,f4,ctrl-v'
+      --tiebreak=index --expect='esc,ctrl-r,f1,f2,f3,f4'
       --bind 'ctrl-d:page-down,ctrl-u:page-up'
       --print-query
       --preview='source ${FZF_HISTDB_FILE}; histdb-detail ${HISTDB_FILE} {1}' --preview-window=up:50%:wrap
@@ -272,7 +258,7 @@ histdb-fzf-widget() {
       --query='${query}' +m"
 
     histdb-fzf-log "$OPTIONS"
-    result=( "${(@f)$( histdb-fzf-query ${cmd_opts} ${cmd_opts_extra} |
+    result=( "${(@f)$( histdb-fzf-query ${cmd_opts} |
        FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD} )}" )
     # here we got a result from fzf, containing all the information, now we must handle it, split it and use the correct elements
     histdb-fzf-log "returncode was $?"
