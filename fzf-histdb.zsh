@@ -258,7 +258,7 @@ histdb-fzf-widget() {
       --header='${typ}${NL}${switchhints}${NL}―――――――――――――――――――――――――' --delimiter=' '
       -n2.. --with-nth=2..
       --tiebreak=index --expect='esc,ctrl-r,f1,f2,f3,f4'
-      --bind 'ctrl-d:page-down,ctrl-u:page-up'
+      --bind 'ctrl-d:page-down,ctrl-u:page-up,ctrl-v:toggle-raw'
       --print-query
       --preview='source ${FZF_HISTDB_FILE}; histdb-detail ${HISTDB_FILE} {1}' --preview-window=up:50%:wrap
       --no-hscroll
