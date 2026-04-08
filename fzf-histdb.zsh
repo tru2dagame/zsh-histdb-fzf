@@ -244,8 +244,17 @@ histdb-fzf-widget() {
 		mode=$((($mode % $#histdb_fzf_modes) + 1))
     histdb-fzf-log "mode changed to ${histdb_fzf_modes[$mode]} ($mode)"
 
+    local tmux_opt=""
+    if [[ -n "$TMUX" && -n "$FZF_TMUX" && "$FZF_TMUX" != "0" ]]; then
+      # Convert fzf-tmux style (-p 80%) to fzf --tmux style (80%)
+      local tmux_size="${FZF_TMUX_OPTS#*-p }"
+      tmux_opt="--tmux ${tmux_size:-90%}"
+    fi
+
     # log the FZF arguments
     OPTIONS="$ORIG_FZF_DEFAULT_OPTS
+      --no-raw
+      ${tmux_opt}
       --ansi
       --header='${typ}${NL}${switchhints}${NL}―――――――――――――――――――――――――' --delimiter=' '
       -n2.. --with-nth=2..
