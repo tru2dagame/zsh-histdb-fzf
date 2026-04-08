@@ -58,7 +58,6 @@ histdb-fzf-query(){
   local where=""
   local everywhere=0
   local date_format="$(get_date_format)"
-
   local cols="history.id as id, commands.argv as argv, start_time as max_start, exit_status"
 	local timecol="strftime( '${date_format} %H:%M', max_start, 'unixepoch', 'localtime') as time"
 	local groupby="group by cmd"
@@ -154,7 +153,7 @@ histdb-detail(){
   if [[ "${array[2]}" == "NONE" ]];then
     #Color exitcode magento if not available
     array[2]=$(echo "\033[35m${array[2]}\033[0m")
-  elif [[ ! ${array[2]} ]];then
+  elif [[ "${array[2]}" != "0" ]];then
     #Color exitcode red if not 0
     array[2]=$(echo "\033[31m${array[2]}\033[0m")
   fi
@@ -215,7 +214,7 @@ histdb-fzf-widget() {
     histdb-fzf-log "------------------- TURN -------------------"
     histdb-fzf-log "Exitkey $exitkey"
     # the f keys are a shortcut to select a certain mode
-		elif [[ $exitkey =~ "f." ]]; then
+		if [[ $exitkey =~ "f." ]]; then
       mode=${exitkey[$(($MBEGIN+1)),$MEND]}
       histdb-fzf-log "mode changed to ${histdb_fzf_modes[$mode]} ($mode)"
     fi
@@ -260,7 +259,6 @@ histdb-fzf-widget() {
     histdb-fzf-log "$OPTIONS"
     result=( "${(@f)$( histdb-fzf-query ${cmd_opts} |
        FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD} )}" )
-    # here we got a result from fzf, containing all the information, now we must handle it, split it and use the correct elements
     histdb-fzf-log "returncode was $?"
     query=$result[1]
     exitkey=${result[2]}
