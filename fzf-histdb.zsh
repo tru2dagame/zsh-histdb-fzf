@@ -57,25 +57,29 @@ histdb-fzf-query(){
 
   local where=""
   local everywhere=0
-	local cols="history.id as id, commands.argv as argv, max(start_time) as max_start, exit_status"
-	local groupby="group by history.command_id, history.place_id"
+	# local cols="history.id as id, commands.argv as argv, max(start_time) as max_start, exit_status"
+	# local groupby="group by history.command_id, history.place_id"
   local date_format="$(get_date_format)"
   local mst="datetime(max_start, 'unixepoch')"
   local dst="datetime('now', 'start of day')"
   local yst="datetime('now', 'start of year')"
-  local timecol="strftime(
-                   case when $mst > $dst then
-                      '%H:%M'
-                   else (
-                     case when $mst > $yst then
-                       '${date_format}'
-                     else
-                       '${date_format}/%Y'
-                     end)
-                   end,
-                   max_start,
-                   'unixepoch',
-                   'localtime') as time"
+  # local timecol="strftime(
+                   # case when $mst > $dst then
+                   #    '%H:%M'
+                   # else (
+                   #   case when $mst > $yst then
+                   #     '${date_format}'
+                   #   else
+                   #     '${date_format}/%Y'
+                   #   end)
+                   # end,
+                   # max_start,
+                   # 'unixepoch',
+                   # 'localtime') as time"
+
+  local cols="history.id as id, commands.argv as argv, start_time as max_start, exit_status"
+	local timecol="strftime( '${date_format} %H:%M', max_start, 'unixepoch', 'localtime') as time"
+	local groupby=""
 
   for opt ($opts); do
       case $opt in
@@ -97,7 +101,7 @@ histdb-fzf-query(){
       esac
   done
   if [[ $everywhere -eq 0 ]];then
-    where="${where:+$where and} places.host=${HISTDB_HOST}"
+    where="${where:+$where and} places.host<>''"
   fi
 
   local query="
@@ -120,7 +124,9 @@ histdb-fzf-query(){
 				order
 				  by max_start desc
 			)
-      order by max_start desc"
+      group by cmd
+      order by max_start desc
+"
 
   histdb-fzf-log "query for log '${(Q)query}'"
 
@@ -164,7 +170,6 @@ histdb-detail(){
         left join places on history.place_id = places.id
       where ${where})
   "
-
   array_str=("${$(sqlite3 -cmd ".timeout 1000" "${HISTDB_FILE}" -separator " " "$query" )}")
   array=(${(@s: :)array_str})
 
@@ -224,7 +229,7 @@ histdb-fzf-widget() {
   elif [[ -z ${HISTDB_SESSION} ]];then
     mode=2
   else
-    mode=1
+    mode=4
   fi
   histdb-fzf-log "Start mode ${histdb_fzf_modes[$mode]} ($mode)"
   exitkey='ctrl-r'
@@ -253,22 +258,22 @@ histdb-fzf-widget() {
       'session')
         cmd_opts="-s"
         typ="Session local history ${fg[blue]}${HISTDB_SESSION}${reset_color}"
-        switchhints="${fg[blue]}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- F5: toggle grouping"
+        switchhints="${fg[blue]}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
         ;;
       'loc')
         cmd_opts="-d"
         typ="Directory local history ${fg[blue]}$(pwd)${reset_color}"
-        switchhints="${bold_color}F1: session${reset_color} ${fg[blue]}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- F5: toggle grouping"
+        switchhints="${bold_color}F1: session${reset_color} ${fg[blue]}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
         ;;
       'global')
         cmd_opts=""
         typ="global history ${fg[blue]}$(hostname)${reset_color}"
-        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${fg[blue]}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- F5: toggle grouping"
+        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${fg[blue]}F3: global${reset_color} ${bold_color}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
         ;;
       'everywhere')
         cmd_opts="-t"
         typ='everywhere'
-        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${fg[blue]}F4: everywhere${reset_color} -- F5: toggle grouping"
+        switchhints="${bold_color}F1: session${reset_color} ${bold_color}F2: directory${reset_color} ${bold_color}F3: global${reset_color} ${fg[blue]}F4: everywhere${reset_color} -- ctrl-v: toggle grouping"
         ;;
     esac
 		mode=$(((($mode + 1) % $#histdb_fzf_modes)))
@@ -279,19 +284,22 @@ histdb-fzf-widget() {
       --ansi
       --header='${typ}${NL}${switchhints}${NL}―――――――――――――――――――――――――' --delimiter=' '
       -n2.. --with-nth=2..
-      --tiebreak=index --expect='esc,ctrl-r,f1,f2,f3,f4,f5'
+      --tiebreak=index --expect='esc,ctrl-r,f1,f2,f3,f4,ctrl-v'
       --bind 'ctrl-d:page-down,ctrl-u:page-up'
       --print-query
-      --preview='source ${FZF_HISTDB_FILE}; histdb-detail ${HISTDB_FILE} {1}' --preview-window=right:50%:wrap
+      --preview='source ${FZF_HISTDB_FILE}; histdb-detail ${HISTDB_FILE} {1}' --preview-window=up:50%:wrap
       --no-hscroll
       --query='${query}' +m"
 
     histdb-fzf-log "$OPTIONS"
-
+    #echo "$(@f)" > /Users/tru/Dropbox/git/src/github.com/m42e/zsh-histdb-fzf/result2.txt
+    #result=( "${(@f)$( histdb-fzf-query ${cmd_opts} ${cmd_opts_extra} |
+    #  FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD})}" )
     result=( "${(@f)$( histdb-fzf-query ${cmd_opts} ${cmd_opts_extra} |
-      FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD})}" )
+       FZF_DEFAULT_OPTS="${OPTIONS}" fzf )}" )
     # here we got a result from fzf, containing all the information, now we must handle it, split it and use the correct elements
     histdb-fzf-log "returncode was $?"
+    echo "$FZF_DEFAULT_OPTS" >> /Users/tru/Dropbox/git/src/github.com/m42e/zsh-histdb-fzf/result.txt
     query=$result[1]
     exitkey=${result[2]}
     fzf_selected="${(@s: :)result[3]}"
