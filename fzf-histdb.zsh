@@ -83,8 +83,7 @@ histdb-fzf-query(){
       select
       id,
       ${timecol},
-      CASE exit_status WHEN 0 THEN '' ELSE '${fg[red]}' END || replace(argv, '$NL', ' ') as cmd,
-      CASE exit_status WHEN 0 THEN '' ELSE '${reset_color}' END
+      replace(argv, '$NL', ' ') as cmd
       from
       ( select
           ${cols}
