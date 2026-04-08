@@ -273,7 +273,7 @@ histdb-fzf-widget() {
 
     histdb-fzf-log "$OPTIONS"
     result=( "${(@f)$( histdb-fzf-query ${cmd_opts} ${cmd_opts_extra} |
-       FZF_DEFAULT_OPTS="${OPTIONS}" fzf )}" )
+       FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD} )}" )
     # here we got a result from fzf, containing all the information, now we must handle it, split it and use the correct elements
     histdb-fzf-log "returncode was $?"
     query=$result[1]
