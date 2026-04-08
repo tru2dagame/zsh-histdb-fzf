@@ -57,25 +57,7 @@ histdb-fzf-query(){
 
   local where=""
   local everywhere=0
-	# local cols="history.id as id, commands.argv as argv, max(start_time) as max_start, exit_status"
-	# local groupby="group by history.command_id, history.place_id"
   local date_format="$(get_date_format)"
-  local mst="datetime(max_start, 'unixepoch')"
-  local dst="datetime('now', 'start of day')"
-  local yst="datetime('now', 'start of year')"
-  # local timecol="strftime(
-                   # case when $mst > $dst then
-                   #    '%H:%M'
-                   # else (
-                   #   case when $mst > $yst then
-                   #     '${date_format}'
-                   #   else
-                   #     '${date_format}/%Y'
-                   #   end)
-                   # end,
-                   # max_start,
-                   # 'unixepoch',
-                   # 'localtime') as time"
 
   local cols="history.id as id, commands.argv as argv, start_time as max_start, exit_status"
 	local timecol="strftime( '${date_format} %H:%M', max_start, 'unixepoch', 'localtime') as time"
@@ -94,8 +76,6 @@ histdb-fzf-query(){
               ;;
           -a)
 							histdb-fzf-log "Grouping disabled"
-				      cols="history.id as id, commands.argv as argv, start_time as max_start, exit_status"
-							timecol="strftime( '${date_format} %H:%M', max_start, 'unixepoch', 'localtime') as time"
 				      groupby=""
               ;;
       esac
@@ -292,17 +272,12 @@ histdb-fzf-widget() {
       --query='${query}' +m"
 
     histdb-fzf-log "$OPTIONS"
-    #echo "$(@f)" > /Users/tru/Dropbox/git/src/github.com/m42e/zsh-histdb-fzf/result2.txt
-    #result=( "${(@f)$( histdb-fzf-query ${cmd_opts} ${cmd_opts_extra} |
-    #  FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD})}" )
     result=( "${(@f)$( histdb-fzf-query ${cmd_opts} ${cmd_opts_extra} |
        FZF_DEFAULT_OPTS="${OPTIONS}" fzf )}" )
     # here we got a result from fzf, containing all the information, now we must handle it, split it and use the correct elements
     histdb-fzf-log "returncode was $?"
-    echo "$FZF_DEFAULT_OPTS" >> /Users/tru/Dropbox/git/src/github.com/m42e/zsh-histdb-fzf/result.txt
     query=$result[1]
     exitkey=${result[2]}
-    fzf_selected="${(@s: :)result[3]}"
     fzf_selected="${${(@s: :)result[3]}[1]}"
     histdb-fzf-log "Query was      ${query:-<nothing>}"
     histdb-fzf-log "Exitkey was    ${exitkey:-<NONE>}"
