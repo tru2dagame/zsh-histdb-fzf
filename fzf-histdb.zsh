@@ -187,8 +187,39 @@ histdb-get-command(){
   printf "%s" "$(sqlite3 -cmd ".timeout 1000" "${HISTDB_FILE}" "$query")"
 }
 
+histdb-fzf-forget() {
+  local history_id=$1 tmux_opt=$2 command_id choice error
+  [[ "$history_id" == <-> ]] || return 0
+  command_id=$(sqlite3 -batch -cmd ".timeout 1000" "$HISTDB_FILE" \
+    "select command_id from history where id=$history_id;") || return 1
+  [[ "$command_id" == <-> ]] || return 0
+
+  choice=$(printf '%s\n' Cancel Delete |
+    FZF_DEFAULT_OPTS='' FZF_DEFAULT_OPTS_FILE='' ${HISTDB_FZF_CMD} ${=tmux_opt} \
+      --layout=reverse --no-sort --no-multi --disabled --no-raw \
+      --prompt='Confirm> ' \
+      --header=$'Delete this exact command?\nFrom ALL histdb history:\nall hosts, dirs and sessions.\nEnter: choose / Esc: cancel' \
+      --preview="source ${(q)FZF_HISTDB_FILE}; histdb-get-command ${(q)HISTDB_FILE} $history_id" \
+      --preview-window=up:70%:wrap) || return 0
+  [[ "$choice" == Delete ]] || return 0
+
+  # Like histdb --forget: remove executions, then the unreferenced command.
+  # The unique command_id preserves exact matching, including multiline text.
+  if ! error=$(sqlite3 -batch -bail -cmd ".timeout 1000" "$HISTDB_FILE" "
+    begin immediate;
+    delete from history where command_id=$command_id;
+    delete from commands where id=$command_id
+      and not exists (select 1 from history where command_id=$command_id);
+    commit;
+  " 2>&1); then
+    histdb-fzf-log "Delete failed: $error"
+    return 1
+  fi
+  return 0
+}
+
 histdb-fzf-widget() {
-  local selected num mode exitkey typ cmd_opts
+  local selected num mode current_mode exitkey typ cmd_opts notice=''
   ORIG_FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS
   query=${BUFFER}
   origquery=${BUFFER}
@@ -217,6 +248,7 @@ histdb-fzf-widget() {
       mode=${exitkey[$(($MBEGIN+1)),$MEND]}
       histdb-fzf-log "mode changed to ${histdb_fzf_modes[$mode]} ($mode)"
     fi
+    current_mode=$mode
     # based on the mode, we use the options for histdb options
     case "$histdb_fzf_modes[$mode]" in
       'session')
@@ -255,18 +287,18 @@ histdb-fzf-widget() {
       --no-raw
       ${tmux_opt}
       --ansi
-      --header='${typ}${NL}${switchhints}${NL}―――――――――――――――――――――――――' --delimiter=' '
+      --header='${typ}${NL}${switchhints}${NL}Ctrl-W: delete command (all hosts)${notice:+${NL}${notice}}${NL}―――――――――――――――――――――――――' --delimiter=' '
       -n2.. --with-nth=2..
-      --tiebreak=index --expect='esc,ctrl-r,f1,f2,f3,f4'
+      --tiebreak=index --expect='esc,ctrl-r,f1,f2,f3,f4,ctrl-w'
       --bind 'ctrl-d:page-down,ctrl-u:page-up,ctrl-v:toggle-raw'
       --print-query
       --preview='source ${FZF_HISTDB_FILE}; histdb-detail ${HISTDB_FILE} {1}' --preview-window=up:50%:wrap
       --no-hscroll
-      --query='${query}' +m"
+      +m"
 
     histdb-fzf-log "$OPTIONS"
     result=( "${(@f)$( histdb-fzf-query ${cmd_opts} |
-       FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD} )}" )
+       FZF_DEFAULT_OPTS="${OPTIONS}" ${HISTDB_FZF_CMD} --query="$query" )}" )
     histdb-fzf-log "returncode was $?"
     query=$result[1]
     exitkey=${result[2]}
@@ -274,6 +306,13 @@ histdb-fzf-widget() {
     histdb-fzf-log "Query was      ${query:-<nothing>}"
     histdb-fzf-log "Exitkey was    ${exitkey:-<NONE>}"
     histdb-fzf-log "fzf_selected = $fzf_selected"
+
+    notice=''
+    if [[ "$exitkey" == ctrl-w ]]; then
+      histdb-fzf-forget "$fzf_selected" "$tmux_opt" || \
+        notice='Delete failed; please try again.'
+      mode=$current_mode
+    fi
 
   done
   if [[ "$exitkey" == "esc" ]]; then
